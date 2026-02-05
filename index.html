@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>X-ORBIT Status - System Status & Uptime</title>
+    <title>X-ORBIT Status</title>
     <link rel="icon" type="image/png" href="https://i.imgur.com/qmOv0qw.png" />
     <link
       rel="stylesheet"
@@ -153,6 +153,10 @@
         background: linear-gradient(90deg, #fbbf24, #facc15);
       }
 
+      .overall-status.unknown::before {
+        background: linear-gradient(90deg, #6b7280, #9ca3af);
+      }
+
       .status-icon {
         width: 60px;
         height: 60px;
@@ -180,6 +184,11 @@
       .overall-status.maintenance .status-icon {
         background: linear-gradient(135deg, #fbbf24, #facc15);
         box-shadow: 0 0 30px rgba(251, 191, 36, 0.4);
+      }
+
+      .overall-status.unknown .status-icon {
+        background: linear-gradient(135deg, #6b7280, #9ca3af);
+        box-shadow: 0 0 30px rgba(107, 114, 128, 0.4);
       }
 
       @keyframes pulse {
@@ -211,6 +220,10 @@
         color: #fbbf24;
       }
 
+      .overall-status.unknown .status-title {
+        color: #9ca3af;
+      }
+
       .status-subtitle {
         color: #94a3b8;
         font-size: 1rem;
@@ -230,6 +243,12 @@
       .incident-banner.show {
         display: block;
         animation: slideDown 0.3s ease;
+      }
+
+      .incident-banner.critical {
+        background: rgba(239, 68, 68, 0.1);
+        border-color: rgba(239, 68, 68, 0.3);
+        border-left-color: #ef4444;
       }
 
       @keyframes slideDown {
@@ -262,10 +281,18 @@
         flex-shrink: 0;
       }
 
+      .incident-banner.critical .incident-icon {
+        background: linear-gradient(135deg, #ef4444, #dc2626);
+      }
+
       .incident-title {
         font-size: 1.1rem;
         font-weight: 600;
         color: #fbbf24;
+      }
+
+      .incident-banner.critical .incident-title {
+        color: #fca5a5;
       }
 
       .incident-message {
@@ -314,9 +341,6 @@
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 16px;
         padding: 1.5rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
         transition: all 0.3s ease;
       }
 
@@ -324,6 +348,13 @@
         background: rgba(15, 15, 35, 0.8);
         border-color: rgba(147, 51, 234, 0.3);
         transform: translateX(5px);
+      }
+
+      .service-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
       }
 
       .service-info {
@@ -394,12 +425,76 @@
         border: 1px solid rgba(251, 191, 36, 0.3);
       }
 
+      .service-status.unknown {
+        background: rgba(107, 114, 128, 0.15);
+        color: #9ca3af;
+        border: 1px solid rgba(107, 114, 128, 0.3);
+      }
+
       .status-dot {
         width: 8px;
         height: 8px;
         border-radius: 50%;
         background: currentColor;
         animation: pulse 2s ease-in-out infinite;
+      }
+
+      /* Components List */
+      .components-list {
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid rgba(255, 255, 255, 0.1);
+        display: grid;
+        gap: 0.5rem;
+      }
+
+      .component-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.75rem;
+        background: rgba(255, 255, 255, 0.02);
+        border-radius: 8px;
+        font-size: 0.9rem;
+      }
+
+      .component-name {
+        color: #cbd5e1;
+      }
+
+      .component-status {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+        font-weight: 500;
+      }
+
+      .component-status.operational {
+        color: #10b981;
+      }
+
+      .component-status.degraded {
+        color: #fbbf24;
+      }
+
+      .component-status.outage {
+        color: #ef4444;
+      }
+
+      .component-status.maintenance {
+        color: #fbbf24;
+      }
+
+      .component-status.unknown {
+        color: #9ca3af;
+      }
+
+      .component-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
       }
 
       /* Uptime Stats */
@@ -601,6 +696,10 @@
         }
 
         .service-card {
+          padding: 1rem;
+        }
+
+        .service-header {
           flex-direction: column;
           align-items: flex-start;
           gap: 1rem;
@@ -644,13 +743,13 @@
           <div class="incident-icon">
             <i class="fas fa-tools"></i>
           </div>
-          <div class="incident-title">Scheduled Maintenance</div>
+          <div class="incident-title" id="bannerTitle">Incident Title</div>
         </div>
-        <div class="incident-message" id="incidentMessage">
-          X-ORBIT will be temporarily unavailable today at 5:00 PM MT for a critical backend framework update. Expected downtime: 30-60 minutes.
+        <div class="incident-message" id="bannerMessage">
+          Incident description
         </div>
-        <div class="incident-time" id="incidentTime">
-          Scheduled for: Today at 5:00 PM MT
+        <div class="incident-time" id="bannerTime">
+          Status: Investigating
         </div>
       </div>
 
@@ -731,6 +830,7 @@
 
     <script>
       let supabaseClient = null;
+      let supabaseAvailable = false;
 
       // Initialize Supabase
       async function initSupabase() {
@@ -755,7 +855,19 @@
             SUPABASE_ANON_KEY
           );
 
-          console.log("✅ Supabase initialized");
+          // Test connection
+          const { error } = await supabaseClient
+            .from("status_info")
+            .select("count")
+            .limit(1);
+
+          if (error) {
+            console.error("Supabase connection test failed:", error);
+            return false;
+          }
+
+          console.log("✅ Supabase initialized and connected");
+          supabaseAvailable = true;
           return true;
         } catch (error) {
           console.error("❌ Supabase initialization failed:", error);
@@ -763,98 +875,181 @@
         }
       }
 
-      // Default services configuration
-      const defaultServices = [
-        {
-          id: "web-dashboard",
-          name: "Web Dashboard",
-          description: "Main X-ORBIT dashboard interface",
-          icon: "fa-globe",
-          status: "operational",
-        },
-        {
-          id: "proxy-browser",
-          name: "Proxy Browser",
-          description: "Rammerhead & Ultraviolet proxy services",
-          icon: "fa-browser",
-          status: "operational",
-        },
-        {
-          id: "authentication",
-          name: "Authentication",
-          description: "Login and user authentication system",
-          icon: "fa-shield-halved",
-          status: "operational",
-        },
-        {
-          id: "api",
-          name: "API Services",
-          description: "Backend API and database connections",
-          icon: "fa-code",
-          status: "operational",
-        },
-        {
-          id: "support",
-          name: "Support Portal",
-          description: "Ticket system and support center",
-          icon: "fa-life-ring",
-          status: "operational",
-        },
-      ];
-
-      // Load services status
+      // Load services status from Supabase
       async function loadServices() {
         const servicesGrid = document.getElementById("servicesGrid");
 
         try {
-          // Try to load from Supabase if available
-          if (supabaseClient) {
-            const { data, error } = await supabaseClient
-              .from("service_status")
-              .select("*")
-              .order("priority", { ascending: true });
-
-            if (data && data.length > 0) {
-              displayServices(data);
-              updateOverallStatus(data);
-              return;
-            }
+          if (!supabaseClient || !supabaseAvailable) {
+            throw new Error("Supabase not available");
           }
 
-          // Fallback to default services
-          displayServices(defaultServices);
-          updateOverallStatus(defaultServices);
+          // Load services
+          const { data: services, error: servicesError } = await supabaseClient
+            .from("status_info")
+            .select("*")
+            .order("priority", { ascending: true });
+
+          if (servicesError) {
+            console.error("Error fetching services:", servicesError);
+            throw servicesError;
+          }
+
+          // Load components
+          const { data: components, error: componentsError } = await supabaseClient
+            .from("service_components")
+            .select("*")
+            .order("priority", { ascending: true });
+
+          if (componentsError) {
+            console.error("Error fetching components:", componentsError);
+          }
+
+          // Map components to their parent services
+          const componentsMap = {};
+          if (components) {
+            components.forEach((comp) => {
+              if (!componentsMap[comp.parent_service_id]) {
+                componentsMap[comp.parent_service_id] = [];
+              }
+              componentsMap[comp.parent_service_id].push(comp);
+            });
+          }
+
+          const servicesWithComponents = services.map((service) => ({
+            ...service,
+            components: componentsMap[service.service_id] || [],
+          }));
+
+          displayServices(servicesWithComponents);
+          updateOverallStatus(servicesWithComponents);
+
+          if (servicesWithComponents[0]?.uptime_24h !== undefined) {
+            updateUptimeStats(servicesWithComponents);
+          }
         } catch (error) {
           console.error("Error loading services:", error);
-          displayServices(defaultServices);
-          updateOverallStatus(defaultServices);
+          handleSupabaseFailure();
         }
       }
 
-      // Display services
+      // Handle Supabase connection failure
+      function handleSupabaseFailure() {
+        console.warn("⚠️ Supabase unavailable - marking database as down and others as unknown");
+        
+        const fallbackServices = [
+          {
+            service_id: "web-dashboard",
+            service_name: "Web Dashboard",
+            service_description: "Main X-ORBIT dashboard interface",
+            service_icon: "fa-globe",
+            status: "unknown",
+            components: [],
+          },
+          {
+            service_id: "proxy-browser",
+            service_name: "Proxy Browser",
+            service_description: "Rammerhead & Ultraviolet proxy services",
+            service_icon: "fa-browser",
+            status: "unknown",
+            components: [],
+          },
+          {
+            service_id: "authentication",
+            service_name: "Authentication",
+            service_description: "Login and user authentication system",
+            service_icon: "fa-shield-halved",
+            status: "unknown",
+            components: [],
+          },
+          {
+            service_id: "api-services",
+            service_name: "API Services",
+            service_description: "Backend API and database connections",
+            service_icon: "fa-code",
+            status: "unknown",
+            components: [],
+          },
+          {
+            service_id: "support-portal",
+            service_name: "Support Portal",
+            service_description: "Ticket system and support center",
+            service_icon: "fa-life-ring",
+            status: "unknown",
+            components: [],
+          },
+          {
+            service_id: "database",
+            service_name: "Database",
+            service_description: "Supabase PostgreSQL database",
+            service_icon: "fa-database",
+            status: "outage",
+            components: [],
+          },
+        ];
+
+        displayServices(fallbackServices);
+        updateOverallStatus(fallbackServices);
+
+        // Show banner
+        const banner = document.getElementById("incidentBanner");
+        const bannerTitle = document.getElementById("bannerTitle");
+        const bannerMessage = document.getElementById("bannerMessage");
+        const bannerTime = document.getElementById("bannerTime");
+
+        bannerTitle.textContent = "Database Connection Issue";
+        bannerMessage.textContent = "Unable to connect to the status database. Service status information may be outdated or unavailable.";
+        bannerTime.textContent = "Status: Investigating";
+        banner.classList.add("show", "critical");
+      }
+
+      // Display services with components
       function displayServices(services) {
         const servicesGrid = document.getElementById("servicesGrid");
 
         servicesGrid.innerHTML = services
-          .map(
-            (service) => `
-          <div class="service-card">
-            <div class="service-info">
-              <div class="service-icon">
-                <i class="fas ${service.icon}"></i>
+          .map((service) => {
+            const componentsHTML = service.components?.length
+              ? `
+              <div class="components-list">
+                ${service.components
+                  .map(
+                    (comp) => `
+                  <div class="component-item">
+                    <span class="component-name">${comp.component_name}</span>
+                    <div class="component-status ${comp.status}">
+                      <span class="component-dot"></span>
+                      ${formatStatus(comp.status)}
+                    </div>
+                  </div>
+                `
+                  )
+                  .join("")}
               </div>
-              <div class="service-details">
-                <h3>${service.name}</h3>
-                <p class="service-description">${service.description}</p>
+            `
+              : "";
+
+            return `
+            <div class="service-card">
+              <div class="service-header">
+                <div class="service-info">
+                  <div class="service-icon">
+                    <i class="fas ${service.service_icon}"></i>
+                  </div>
+                  <div class="service-details">
+                    <h3>${service.service_name}</h3>
+                    <p class="service-description">${service.service_description}</p>
+                  </div>
+                </div>
+                <div class="service-status ${service.status}">
+                  <span class="status-dot"></span>
+                  ${formatStatus(service.status)}
+                </div>
               </div>
+              ${componentsHTML}
             </div>
-            <div class="service-status ${service.status}">
-              <span class="status-dot"></span>
-              ${formatStatus(service.status)}
-            </div>
-          </div>
-        `
-          )
+          `;
+          })
           .join("");
       }
 
@@ -865,6 +1060,7 @@
           degraded: "Degraded",
           outage: "Outage",
           maintenance: "Maintenance",
+          unknown: "Unknown",
         };
         return statusMap[status] || "Unknown";
       }
@@ -879,6 +1075,7 @@
         const hasOutage = services.some((s) => s.status === "outage");
         const hasDegraded = services.some((s) => s.status === "degraded");
         const hasMaintenance = services.some((s) => s.status === "maintenance");
+        const hasUnknown = services.some((s) => s.status === "unknown");
 
         if (hasOutage) {
           overallStatus.className = "overall-status outage";
@@ -889,14 +1086,17 @@
           overallStatus.className = "overall-status maintenance";
           statusIcon.className = "fas fa-tools";
           statusTitle.textContent = "Scheduled Maintenance";
-          statusSubtitle.textContent =
-            "Some services are under maintenance";
+          statusSubtitle.textContent = "Some services are under maintenance";
         } else if (hasDegraded) {
           overallStatus.className = "overall-status degraded";
           statusIcon.className = "fas fa-exclamation-triangle";
           statusTitle.textContent = "Degraded Performance";
-          statusSubtitle.textContent =
-            "Some services may be running slower than normal";
+          statusSubtitle.textContent = "Some services may be running slower than normal";
+        } else if (hasUnknown) {
+          overallStatus.className = "overall-status unknown";
+          statusIcon.className = "fas fa-question-circle";
+          statusTitle.textContent = "Status Unknown";
+          statusSubtitle.textContent = "Unable to determine current service status";
         } else {
           overallStatus.className = "overall-status";
           statusIcon.className = "fas fa-check-circle";
@@ -905,40 +1105,84 @@
         }
       }
 
-      // Load incidents
+      // Update uptime statistics from database
+      function updateUptimeStats(services) {
+        const avgUptime24h = services.reduce((sum, s) => sum + (s.uptime_24h || 100), 0) / services.length;
+        const avgUptime7d = services.reduce((sum, s) => sum + (s.uptime_7d || 100), 0) / services.length;
+        const avgUptime30d = services.reduce((sum, s) => sum + (s.uptime_30d || 100), 0) / services.length;
+        const avgUptime90d = services.reduce((sum, s) => sum + (s.uptime_90d || 100), 0) / services.length;
+
+        document.getElementById("uptime24h").textContent = avgUptime24h.toFixed(2) + "%";
+        document.getElementById("uptime7d").textContent = avgUptime7d.toFixed(2) + "%";
+        document.getElementById("uptime30d").textContent = avgUptime30d.toFixed(2) + "%";
+        document.getElementById("uptime90d").textContent = avgUptime90d.toFixed(2) + "%";
+      }
+
+      // Load active incidents
       async function loadIncidents() {
         const incidentsList = document.getElementById("incidentsList");
+        const incidentBanner = document.getElementById("incidentBanner");
 
         try {
-          if (supabaseClient) {
-            const { data, error } = await supabaseClient
-              .from("incidents")
-              .select("*")
-              .order("created_at", { ascending: false })
-              .limit(10);
-
-            if (data && data.length > 0) {
-              displayIncidents(data);
-              return;
-            }
+          if (!supabaseClient || !supabaseAvailable) {
+            throw new Error("Supabase not available");
           }
 
-          // Show empty state
-          incidentsList.innerHTML = `
-            <div class="empty-state">
-              <i class="fas fa-check-circle"></i>
-              <p>No recent incidents reported</p>
-            </div>
-          `;
+          const { data: incidents, error } = await supabaseClient
+            .from("incidents")
+            .select("*")
+            .eq("is_active", true)
+            .order("created_at", { ascending: false })
+            .limit(10);
+
+          if (error) {
+            console.error("Error fetching incidents:", error);
+            throw error;
+          }
+
+          if (incidents && incidents.length > 0) {
+            // Show banner if any incident has show_banner = true
+            const bannerIncident = incidents.find((i) => i.show_banner);
+            if (bannerIncident) {
+              displayIncidentBanner(bannerIncident);
+            }
+
+            displayIncidents(incidents);
+          } else {
+            incidentsList.innerHTML = `
+              <div class="empty-state">
+                <i class="fas fa-check-circle"></i>
+                <p>No recent incidents reported</p>
+              </div>
+            `;
+          }
         } catch (error) {
           console.error("Error loading incidents:", error);
           incidentsList.innerHTML = `
             <div class="empty-state">
-              <i class="fas fa-check-circle"></i>
-              <p>No recent incidents reported</p>
+              <i class="fas fa-exclamation-triangle"></i>
+              <p>Unable to load incident history</p>
             </div>
           `;
         }
+      }
+
+      // Display incident banner
+      function displayIncidentBanner(incident) {
+        const banner = document.getElementById("incidentBanner");
+        const bannerTitle = document.getElementById("bannerTitle");
+        const bannerMessage = document.getElementById("bannerMessage");
+        const bannerTime = document.getElementById("bannerTime");
+
+        bannerTitle.textContent = incident.title;
+        bannerMessage.textContent = incident.description;
+        bannerTime.textContent = `Status: ${incident.status.charAt(0).toUpperCase() + incident.status.slice(1)}`;
+
+        if (incident.severity === "critical") {
+          banner.classList.add("critical");
+        }
+
+        banner.classList.add("show");
       }
 
       // Display incidents
@@ -948,20 +1192,18 @@
         incidentsList.innerHTML = incidents
           .map(
             (incident) => `
-          <div class="incident-card ${
-            incident.status === "resolved" ? "resolved" : ""
-          }">
+          <div class="incident-card ${incident.status === "resolved" ? "resolved" : ""}">
             <div class="incident-card-header">
               <div class="incident-card-title">${incident.title}</div>
               <div class="incident-status-badge ${incident.status}">
                 ${incident.status}
               </div>
             </div>
-            <div class="incident-card-message">${incident.message}</div>
+            <div class="incident-card-message">${incident.description}</div>
             <div class="incident-card-footer">
               <div class="incident-service">
                 <i class="fas fa-server"></i>
-                ${incident.affected_service || "All Services"}
+                ${incident.affected_services === "all" ? "All Services" : incident.affected_services}
               </div>
               <div>
                 <i class="far fa-clock"></i>
@@ -1006,15 +1248,23 @@
 
       // Initialize
       async function init() {
-        await initSupabase();
-        await loadServices();
-        await loadIncidents();
+        const supabaseReady = await initSupabase();
+        
+        if (supabaseReady) {
+          await loadServices();
+          await loadIncidents();
+        } else {
+          handleSupabaseFailure();
+        }
+
         updateLastUpdated();
 
         // Auto-refresh every 30 seconds
         setInterval(async () => {
-          await loadServices();
-          await loadIncidents();
+          if (supabaseAvailable) {
+            await loadServices();
+            await loadIncidents();
+          }
           updateLastUpdated();
         }, 30000);
       }
