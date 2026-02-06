@@ -450,12 +450,17 @@
 
       .component-item {
         display: flex;
-        justify-content: space-between;
-        align-items: center;
+        flex-direction: column;
         padding: 0.75rem;
         background: rgba(255, 255, 255, 0.02);
         border-radius: 8px;
         font-size: 0.9rem;
+      }
+
+      .component-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
       }
 
       .component-name {
@@ -495,6 +500,65 @@
         height: 6px;
         border-radius: 50%;
         background: currentColor;
+      }
+
+      /* Issue Descriptions */
+      .issue-description {
+        margin-top: 0.75rem;
+        padding: 0.75rem;
+        background: rgba(251, 191, 36, 0.1);
+        border-left: 3px solid #fbbf24;
+        border-radius: 6px;
+        color: #fde68a;
+        font-size: 0.85rem;
+        line-height: 1.5;
+      }
+
+      .issue-description.outage {
+        background: rgba(239, 68, 68, 0.1);
+        border-left-color: #ef4444;
+        color: #fca5a5;
+      }
+
+      .issue-description.maintenance {
+        background: rgba(251, 191, 36, 0.1);
+        border-left-color: #fbbf24;
+        color: #fde68a;
+      }
+
+      .issue-description.degraded {
+        background: rgba(245, 158, 11, 0.1);
+        border-left-color: #f59e0b;
+        color: #fcd34d;
+      }
+
+      .component-issue {
+        margin-top: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: rgba(251, 191, 36, 0.08);
+        border-left: 2px solid #fbbf24;
+        border-radius: 4px;
+        color: #fde68a;
+        font-size: 0.8rem;
+        line-height: 1.4;
+      }
+
+      .component-issue.outage {
+        background: rgba(239, 68, 68, 0.08);
+        border-left-color: #ef4444;
+        color: #fca5a5;
+      }
+
+      .component-issue.maintenance {
+        background: rgba(251, 191, 36, 0.08);
+        border-left-color: #fbbf24;
+        color: #fde68a;
+      }
+
+      .component-issue.degraded {
+        background: rgba(245, 158, 11, 0.08);
+        border-left-color: #f59e0b;
+        color: #fcd34d;
       }
 
       /* Uptime Stats */
@@ -1009,21 +1073,34 @@
 
         servicesGrid.innerHTML = services
           .map((service) => {
+            // Service-level issue description
+            const serviceIssueHTML = service.issue_description && service.status !== 'operational'
+              ? `<div class="issue-description ${service.status}">${service.issue_description}</div>`
+              : "";
+
+            // Components with issue descriptions
             const componentsHTML = service.components?.length
               ? `
               <div class="components-list">
                 ${service.components
-                  .map(
-                    (comp) => `
-                  <div class="component-item">
-                    <span class="component-name">${comp.component_name}</span>
-                    <div class="component-status ${comp.status}">
-                      <span class="component-dot"></span>
-                      ${formatStatus(comp.status)}
-                    </div>
-                  </div>
-                `
-                  )
+                  .map((comp) => {
+                    const componentIssueHTML = comp.issue_description && comp.status !== 'operational'
+                      ? `<div class="component-issue ${comp.status}">${comp.issue_description}</div>`
+                      : "";
+
+                    return `
+                      <div class="component-item">
+                        <div class="component-header">
+                          <span class="component-name">${comp.component_name}</span>
+                          <div class="component-status ${comp.status}">
+                            <span class="component-dot"></span>
+                            ${formatStatus(comp.status)}
+                          </div>
+                        </div>
+                        ${componentIssueHTML}
+                      </div>
+                    `;
+                  })
                   .join("")}
               </div>
             `
@@ -1046,6 +1123,7 @@
                   ${formatStatus(service.status)}
                 </div>
               </div>
+              ${serviceIssueHTML}
               ${componentsHTML}
             </div>
           `;
