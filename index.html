@@ -24,6 +24,7 @@
         --yellow:  #fbbf24;
         --red:     #f87171;
         --blue:    #60a5fa;
+        --orange:  #f97316;
         --sidebar: 300px;
       }
 
@@ -96,6 +97,7 @@
       .sb-status-pill.degraded    { background: rgba(251,191,36,0.08);  border-color: rgba(251,191,36,0.2); }
       .sb-status-pill.outage      { background: rgba(248,113,113,0.08); border-color: rgba(248,113,113,0.2); }
       .sb-status-pill.maintenance { background: rgba(96,165,250,0.08);  border-color: rgba(96,165,250,0.2); }
+      .sb-status-pill.shutdown    { background: rgba(249,115,22,0.08);  border-color: rgba(249,115,22,0.2); }
       .sb-status-pill.unknown     { background: rgba(112,112,138,0.08); border-color: var(--border); }
 
       .sb-dot {
@@ -108,6 +110,7 @@
       .sb-status-pill.degraded    .sb-dot { background: var(--yellow); box-shadow: 0 0 8px var(--yellow); }
       .sb-status-pill.outage      .sb-dot { background: var(--red);    box-shadow: 0 0 8px var(--red); }
       .sb-status-pill.maintenance .sb-dot { background: var(--blue);   box-shadow: 0 0 8px var(--blue); }
+      .sb-status-pill.shutdown    .sb-dot { background: var(--orange); box-shadow: 0 0 8px var(--orange); }
       .sb-status-pill.unknown     .sb-dot { background: var(--text-3); box-shadow: none; animation: none; }
 
       @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.35} }
@@ -117,6 +120,7 @@
       .sb-status-pill.degraded    .sb-pill-title { color: var(--yellow); }
       .sb-status-pill.outage      .sb-pill-title { color: var(--red); }
       .sb-status-pill.maintenance .sb-pill-title { color: var(--blue); }
+      .sb-status-pill.shutdown    .sb-pill-title { color: var(--orange); }
       .sb-status-pill.unknown     .sb-pill-title { color: var(--text-3); }
       .sb-pill-sub { font-size: 0.68rem; color: var(--text-3); margin-top: 1px; }
 
@@ -317,6 +321,7 @@
       .service-badge.degraded     { background: rgba(251,191,36,0.1);  color: var(--yellow); border: 1px solid rgba(251,191,36,0.18); }
       .service-badge.outage       { background: rgba(248,113,113,0.1); color: var(--red);    border: 1px solid rgba(248,113,113,0.18); }
       .service-badge.maintenance  { background: rgba(96,165,250,0.1);  color: var(--blue);   border: 1px solid rgba(96,165,250,0.18); }
+      .service-badge.shutdown     { background: rgba(249,115,22,0.1);  color: var(--orange); border: 1px solid rgba(249,115,22,0.18); }
       .service-badge.unknown      { background: rgba(112,112,138,0.1); color: var(--text-3); border: 1px solid rgba(112,112,138,0.18); }
       .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
       .service-badge.operational .badge-dot { animation: blink 2s ease-in-out infinite; }
@@ -339,6 +344,7 @@
       .comp-status.degraded    { color: var(--yellow); }
       .comp-status.outage      { color: var(--red); }
       .comp-status.maintenance { color: var(--blue); }
+      .comp-status.shutdown    { color: var(--orange); }
       .comp-status.unknown     { color: var(--text-3); }
 
       .service-issue { padding: 0 1.25rem 0.75rem; }
@@ -346,8 +352,9 @@
         padding: 6px 12px; border-radius: 6px; font-size: 0.75rem; line-height: 1.5;
         color: var(--yellow); background: rgba(251,191,36,0.07); border-left: 2px solid var(--yellow);
       }
-      .issue-pill.outage      { color: var(--red);  background: rgba(248,113,113,0.07); border-left-color: var(--red); }
-      .issue-pill.maintenance { color: var(--blue); background: rgba(96,165,250,0.07);  border-left-color: var(--blue); }
+      .issue-pill.outage      { color: var(--red);    background: rgba(248,113,113,0.07); border-left-color: var(--red); }
+      .issue-pill.maintenance { color: var(--blue);   background: rgba(96,165,250,0.07);  border-left-color: var(--blue); }
+      .issue-pill.shutdown    { color: var(--orange); background: rgba(249,115,22,0.07);  border-left-color: var(--orange); }
 
       /* ── Two-col layout for incidents ────────────────── */
       .incidents-grid {
@@ -468,6 +475,12 @@
         </div>
       </div>
 
+      <!-- Login shutdown banner -->
+      <div class="incident-alert critical" id="loginShutdownAlert" style="display:none;">
+        <div class="alert-title"><i class="fas fa-ban"></i><span>Logins Temporarily Disabled</span></div>
+        <div class="alert-body">The login system is currently shut down. New sign-ins are not permitted at this time. Please check back later or contact support.</div>
+      </div>
+
       <!-- Incident alert -->
       <div class="incident-alert" id="incidentAlert">
         <div class="alert-title"><i class="fas fa-triangle-exclamation"></i><span id="alertTitle"></span></div>
@@ -523,6 +536,15 @@
           renderServices(merged);
           updateSidebar(merged);
           if (merged[0]?.uptime_24h !== undefined) updateUptime(merged);
+          // Check if auth-login is shut down
+          const allComponents = Object.values(compMap).flat();
+          const authLoginComp = allComponents.find(c => c.component_id === "auth-login");
+          const loginShutdownEl = document.getElementById("loginShutdownAlert");
+          if (authLoginComp && authLoginComp.status === "shutdown") {
+            loginShutdownEl.style.display = "block";
+          } else {
+            loginShutdownEl.style.display = "none";
+          }
         } catch { handleFailure(); }
       }
 
@@ -566,15 +588,18 @@
         const pill  = document.getElementById("sbPill");
         const title = document.getElementById("sbTitle");
         const sub   = document.getElementById("sbSub");
-        const hasOutage = services.some(s => s.status === "outage");
-        const hasMaint  = services.some(s => s.status === "maintenance");
-        const hasDeg    = services.some(s => s.status === "degraded");
-        const hasUnk    = services.some(s => s.status === "unknown");
-        if (hasOutage)     { pill.className="sb-status-pill outage";      title.textContent="Service Disruption";     sub.textContent="One or more services are down."; }
-        else if (hasMaint) { pill.className="sb-status-pill maintenance"; title.textContent="Scheduled Maintenance";  sub.textContent="Maintenance in progress."; }
-        else if (hasDeg)   { pill.className="sb-status-pill degraded";    title.textContent="Degraded Performance";   sub.textContent="Some services are slow."; }
-        else if (hasUnk)   { pill.className="sb-status-pill unknown";     title.textContent="Status Unknown";         sub.textContent="Unable to reach database."; }
-        else               { pill.className="sb-status-pill";             title.textContent="All Systems Operational";sub.textContent="No issues detected."; }
+        const hasOutage   = services.some(s => s.status === "outage");
+        const hasMaint    = services.some(s => s.status === "maintenance");
+        const hasDeg      = services.some(s => s.status === "degraded");
+        const hasUnk      = services.some(s => s.status === "unknown");
+        const hasShutdown = services.some(s => s.status === "shutdown") ||
+          services.some(s => s.components?.some(c => c.status === "shutdown"));
+        if (hasOutage)      { pill.className="sb-status-pill outage";      title.textContent="Service Disruption";     sub.textContent="One or more services are down."; }
+        else if (hasShutdown){ pill.className="sb-status-pill shutdown";   title.textContent="Partial Shutdown";       sub.textContent="Some features are disabled."; }
+        else if (hasMaint)  { pill.className="sb-status-pill maintenance"; title.textContent="Scheduled Maintenance";  sub.textContent="Maintenance in progress."; }
+        else if (hasDeg)    { pill.className="sb-status-pill degraded";    title.textContent="Degraded Performance";   sub.textContent="Some services are slow."; }
+        else if (hasUnk)    { pill.className="sb-status-pill unknown";     title.textContent="Status Unknown";         sub.textContent="Unable to reach database."; }
+        else                { pill.className="sb-status-pill";             title.textContent="All Systems Operational";sub.textContent="No issues detected."; }
       }
 
       function updateUptime(services) {
@@ -625,7 +650,7 @@
       }
 
       function fmtStatus(s) {
-        return {operational:"Operational",degraded:"Degraded",outage:"Outage",maintenance:"Maintenance",unknown:"Unknown"}[s]||"Unknown";
+        return {operational:"Operational",degraded:"Degraded",outage:"Outage",maintenance:"Maintenance",shutdown:"Shutdown",unknown:"Unknown"}[s]||"Unknown";
       }
 
       function fmtDate(d) {
